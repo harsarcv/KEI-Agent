@@ -1,0 +1,142 @@
+.login-page {
+  min-height: 100vh;
+  background: #f5f7fb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 430px;
+  background: #ffffff;
+  border: 1px solid #e6eaf0;
+  border-radius: 20px;
+  padding: 36px;
+  box-shadow: 0 18px 50px rgba(23, 32, 51, 0.08);
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.login-logo {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: #172033;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+}
+
+.login-brand h1 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.login-brand p {
+  margin: 3px 0 0;
+  color: #8992a5;
+  font-size: 10px;
+}
+
+.login-heading {
+  margin-top: 42px;
+}
+
+.login-heading span {
+  color: #8992a5;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+}
+
+.login-heading h2 {
+  margin: 9px 0;
+  color: #172033;
+  font-size: 27px;
+  line-height: 1.2;
+  letter-spacing: -0.8px;
+}
+
+.login-heading p {
+  margin: 0 0 28px;
+  color: #8992a5;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.form-group {
+  margin-bottom: 18px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 7px;
+  color: #424b5d;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.form-group input {
+  width: 100%;
+  border: 1px solid #dfe4ec;
+  border-radius: 10px;
+  padding: 12px 13px;
+  outline: none;
+  color: #172033;
+  background: #ffffff;
+  transition: 0.2s ease;
+}
+
+.form-group input:focus {
+  border-color: #172033;
+  box-shadow: 0 0 0 3px rgba(23, 32, 51, 0.06);
+}
+
+.login-error {
+  margin-bottom: 16px;
+  padding: 11px 13px;
+  border-radius: 9px;
+  background: #fff1f1;
+  border: 1px solid #ffd5d5;
+  color: #c03939;
+  font-size: 12px;
+}
+
+.login-button {
+  width: 100%;
+  border: 0;
+  border-radius: 10px;
+  padding: 13px;
+  background: #172033;
+  color: #ffffff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.login-button:hover:not(:disabled) {
+  opacity: 0.92;
+}
+
+.login-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.login-footer {
+  margin-top: 28px;
+  padding-top: 18px;
+  border-top: 1px solid #edf0f5;
+  display: flex;
+  justify-content: space-between;
+  color: #a0a8b7;
+  font-size: 9px;
+}
