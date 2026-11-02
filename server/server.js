@@ -7,6 +7,7 @@ const knowledgeRoutes = require("./routes/knowledgeRoutes");
 const searchRoutes = require("./routes/searchRoutes");
 const ragRoutes = require("./routes/ragRoutes");
 const authRoutes = require("./auth/authRoutes");
+const conversationRoutes = require("./routes/conversationRoutes");
 
 require("dotenv").config();
 
@@ -29,6 +30,7 @@ app.use("/api/knowledge", knowledgeRoutes);
 app.use("/api/search", searchRoutes);
 app.use("/api/rag", ragRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/conversations", conversationRoutes);
 
 app.listen(PORT, () => {
   console.log(`KEI Backend running on http://localhost:${PORT}`);

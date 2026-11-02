@@ -109,6 +109,9 @@ function App() {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [conversationId, setConversationId] = useState(null);
+  const [conversations, setConversations] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   // Ref untuk area chat agar otomatis scroll ke pesan terbaru
   const conversationRef = useRef(null);
@@ -124,6 +127,133 @@ function App() {
   const [monthlyRevenueLoading, setMonthlyRevenueLoading] =
     useState(true);
 
+  const fetchConversations = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    try {
+      setHistoryLoading(true);
+      const response = await fetch(
+        "http://localhost:5000/api/conversations",
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.message || "Gagal mengambil riwayat percakapan");
+      }
+
+      setConversations(Array.isArray(result.data) ? result.data : []);
+    } catch (error) {
+      console.error("Conversation History Error:", error.message);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const startNewConversation = () => {
+    if (loading) return;
+    setConversationId(null);
+    setMessages([]);
+    setMessage("");
+    setActivePage("dashboard");
+  };
+
+  const deleteConversationItem = async (id) => {
+    if (loading) return;
+
+    const confirmed = window.confirm(
+      "Hapus percakapan ini beserta seluruh pesannya?"
+    );
+
+    if (!confirmed) return;
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+      handleLogout();
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `http://localhost:5000/api/conversations/${id}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || "Gagal menghapus percakapan");
+      }
+
+      setConversations((previous) =>
+        previous.filter(
+          (conversation) => String(conversation.id) !== String(id)
+        )
+      );
+
+      if (String(conversationId) === String(id)) {
+        setConversationId(null);
+        setMessages([]);
+        setMessage("");
+        setActivePage("dashboard");
+      }
+    } catch (error) {
+      console.error("Delete Conversation Error:", error.message);
+      window.alert(error.message || "Gagal menghapus percakapan.");
+    }
+  };
+
+  const openConversation = async (id) => {
+    if (loading) return;
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+      handleLogout();
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `http://localhost:5000/api/conversations/${id}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.message || "Gagal membuka percakapan");
+      }
+
+      const payload = result.data || {};
+      const savedMessages =
+        payload.messages ||
+        payload.conversation?.messages ||
+        [];
+
+      setConversationId(id);
+      setMessages(
+        savedMessages.map((item) => ({
+          role: item.role,
+          text: item.content ?? item.text ?? "",
+          metadata: item.metadata ?? null,
+        }))
+      );
+      setActivePage("dashboard");
+    } catch (error) {
+      console.error("Open Conversation Error:", error.message);
+      window.alert(error.message || "Gagal membuka percakapan.");
+    }
+  };
+
   const handleLogin = (loggedInUser) => {
     setUser(loggedInUser);
   };
@@ -134,6 +264,8 @@ function App() {
 
     setUser(null);
     setMessages([]);
+    setConversationId(null);
+    setConversations([]);
   };
 
   useEffect(() => {
@@ -187,6 +319,12 @@ function App() {
     };
 
     fetchDashboardAnalytics();
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      fetchConversations();
+    }
   }, [user]);
 
   useEffect(() => {
@@ -251,21 +389,6 @@ function App() {
       return;
     }
 
-    // Ambil riwayat percakapan sebelum pesan baru ditambahkan
-    const history = messages
-      .filter(
-        (item) =>
-          item &&
-          (item.role === "user" || item.role === "assistant") &&
-          typeof item.text === "string" &&
-          item.text.trim()
-      )
-      .slice(-10)
-      .map((item) => ({
-        role: item.role,
-        text: item.text.trim(),
-      }));
-
     setMessage("");
     setLoading(true);
 
@@ -293,7 +416,7 @@ function App() {
           },
           body: JSON.stringify({
             message: trimmedMessage,
-            history,
+            conversationId,
           }),
         }
       );
@@ -410,14 +533,18 @@ function App() {
           }
 
           if (parsed.type === "complete") {
+            const returnedConversationId =
+              parsed.data?.conversationId;
+
+            if (returnedConversationId) {
+              setConversationId(returnedConversationId);
+            }
+
             setMessages((previous) => {
               const updated = [...previous];
               const lastIndex = updated.length - 1;
 
-              if (
-                updated[lastIndex]?.role ===
-                "assistant"
-              ) {
+              if (updated[lastIndex]?.role === "assistant") {
                 updated[lastIndex] = {
                   ...updated[lastIndex],
                   metadata: parsed.data,
@@ -426,6 +553,8 @@ function App() {
 
               return updated;
             });
+
+            await fetchConversations();
           }
 
           if (parsed.type === "error") {
@@ -515,6 +644,61 @@ function App() {
             Knowledge Base
           </button>
         </nav>
+
+        <div className="conversation-history">
+          <button
+            className="new-conversation-button"
+            onClick={startNewConversation}
+            disabled={loading}
+          >
+            <span>＋</span>
+            New Conversation
+          </button>
+
+          <div className="history-heading">
+            <span>RECENT CONVERSATIONS</span>
+          </div>
+
+          <div className="history-list">
+            {historyLoading ? (
+              <p className="history-message">Memuat riwayat...</p>
+            ) : conversations.length === 0 ? (
+              <p className="history-message">Belum ada percakapan.</p>
+            ) : (
+              conversations.map((conversation) => (
+                <div className="history-item-row" key={conversation.id}>
+                  <button
+                    className={`history-item ${
+                      String(conversationId) === String(conversation.id)
+                        ? "active"
+                        : ""
+                    }`}
+                    onClick={() => openConversation(conversation.id)}
+                    disabled={loading}
+                    title={conversation.title || "New Conversation"}
+                  >
+                    <span className="history-item-title">
+                      {conversation.title || "New Conversation"}
+                    </span>
+                    <small>
+                      {conversation.message_count ?? 0} pesan
+                    </small>
+                  </button>
+
+                  <button
+                    className="delete-conversation-button"
+                    onClick={() => deleteConversationItem(conversation.id)}
+                    disabled={loading}
+                    title="Hapus conversation"
+                    aria-label={`Hapus ${conversation.title || "conversation"}`}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
 
         <div className="sidebar-bottom">
 

@@ -1,9 +1,16 @@
+
 const express = require("express");
 const { generateAIResponse } = require("../services/aiService");
 const validateAIRequest = require("../middleware/validateAIRequest");
 
-const router = express.Router();
+const {
+    createConversation,
+    saveMessage,
+    getConversationHistory,
+    getConversationById
+} = require("../services/conversationService");
 
+const router = express.Router();
 const { authenticateToken } = require("../auth/authMiddleware");
 
 router.post(
@@ -11,48 +18,80 @@ router.post(
     authenticateToken,
     validateAIRequest,
     async (req, res) => {
+        let conversationId;
+
         try {
-            const { message, history = [] } = req.body;
+            const { message } = req.body;
+            const userId = req.user.id;
 
-            if (!message || !message.trim()) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Message is required",
-                });
-            }
+            /*
+             * 1. VALIDASI CONVERSATION ID
+             */
 
-            if (!Array.isArray(history)) {
-                return res.status(400).json({
-                    success: false,
-                    message: "History must be an array",
-                });
+            const requestedId = req.body.conversationId;
+
+            if (requestedId !== undefined && requestedId !== null) {
+                if (!/^\d+$/.test(String(requestedId))) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Invalid conversation ID"
+                    });
+                }
+
+                conversationId = String(requestedId);
+
+                const conversation = await getConversationById(
+                    conversationId,
+                    userId
+                );
+
+                if (!conversation) {
+                    return res.status(404).json({
+                        success: false,
+                        message: "Conversation not found"
+                    });
+                }
+            } else {
+                /*
+                 * 2. CREATE NEW CONVERSATION
+                 */
+
+                const conversation = await createConversation(
+                    userId,
+                    message.slice(0, 60)
+                );
+
+                conversationId = conversation.id;
             }
 
             /*
-             * ========================================================
-             * BATASI HISTORY
-             * ========================================================
+             * 3. GET CONVERSATION HISTORY
              */
 
-            const limitedHistory = history
+            const historyData = await getConversationHistory(
+                conversationId,
+                userId
+            );
+
+            const limitedHistory = historyData
                 .slice(-10)
-                .filter(
-                    (item) =>
-                        item &&
-                        (item.role === "user" ||
-                            item.role === "assistant") &&
-                        typeof item.text === "string" &&
-                        item.text.trim()
-                )
                 .map((item) => ({
                     role: item.role,
-                    text: item.text.trim(),
+                    text: item.content
                 }));
 
             /*
-             * ========================================================
-             * SSE RESPONSE
-             * ========================================================
+             * 4. SAVE USER MESSAGE
+             */
+
+            await saveMessage(
+                conversationId,
+                "user",
+                message
+            );
+
+            /*
+             * 5. SSE RESPONSE
              */
 
             res.setHeader(
@@ -72,25 +111,17 @@ router.post(
 
             res.flushHeaders();
 
-            /*
-             * ========================================================
-             * STATUS CALLBACK
-             * ========================================================
-             */
-
             const sendStatus = (status) => {
                 res.write(
                     `data: ${JSON.stringify({
                         type: "status",
-                        status,
+                        status
                     })}\n\n`
                 );
             };
 
             /*
-             * ========================================================
-             * AI RESPONSE
-             * ========================================================
+             * 6. GENERATE AI RESPONSE
              */
 
             const response = await generateAIResponse(
@@ -99,7 +130,7 @@ router.post(
                     res.write(
                         `data: ${JSON.stringify({
                             type: "chunk",
-                            text: chunk,
+                            text: chunk
                         })}\n\n`
                     );
                 },
@@ -108,53 +139,52 @@ router.post(
             );
 
             /*
-             * ========================================================
-             * COMPLETE
-             * ========================================================
+             * 7. SAVE ASSISTANT MESSAGE
+             */
+
+            await saveMessage(
+                conversationId,
+                "assistant",
+                response.answer
+            );
+
+            /*
+             * 8. COMPLETE RESPONSE
              */
 
             res.write(
                 `data: ${JSON.stringify({
                     type: "complete",
                     data: {
+                        conversationId,
                         answer: response.answer,
                         dataSource: response.dataSource,
                         toolUsed: response.toolUsed,
-                        confidence: response.confidence,
-                    },
+                        confidence: response.confidence
+                    }
                 })}\n\n`
             );
 
             res.write("data: [DONE]\n\n");
-
             res.end();
+
         } catch (error) {
             console.error(
                 "AI Chat Error:",
                 error.message
             );
 
-            /*
-             * Jika header belum dikirim,
-             * kirim response JSON biasa.
-             */
-
             if (!res.headersSent) {
                 return res.status(503).json({
                     success: false,
-                    message: error.message,
+                    message: error.message
                 });
             }
-
-            /*
-             * Jika SSE sudah berjalan,
-             * kirim error sebagai event SSE.
-             */
 
             res.write(
                 `data: ${JSON.stringify({
                     type: "error",
-                    message: error.message,
+                    message: error.message
                 })}\n\n`
             );
 
